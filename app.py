@@ -1,50 +1,32 @@
-from flask import Flask, request, render_template, Response, stream_with_context
+from flask import Flask, request, render_template, jsonify, redirect
 import yt_dlp
-import io
 
 app = Flask(__name__)
 
-def stream_mp3(url):
-    """Scarica e streamma il file MP3 direttamente al client"""
+def get_audio_url(video_url):
+    """Ottiene l'URL diretto dello stream audio"""
     try:
-        # Buffer in memoria invece che su file
-        buffer = io.BytesIO()
-        
         ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            # Output direttamente nel buffer
-            'outtmpl': '-',
-            'prefer_ffmpeg': True,
-            'keepvideo': False
+            'format': 'bestaudio[ext=m4a]/bestaudio',  # Preferisci formato m4a
+            'extract_audio': True,
+            'quiet': True,
+            'no_warnings': True
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Estrai le informazioni
-            info_dict = ydl.extract_info(url, download=False)
-            video_title = info_dict.get('title', 'video')
+            # Estrai le informazioni del video
+            info = ydl.extract_info(video_url, download=False)
             
-            def generate():
-                # Scarica e streamma i dati
-                proc = ydl.download([url])
-                
-                # Leggi il buffer a blocchi
-                buffer.seek(0)
-                while True:
-                    chunk = buffer.read(8192)
-                    if not chunk:
-                        break
-                    yield chunk
+            # Prendi il formato audio migliore disponibile
+            for format in info['formats']:
+                if format.get('acodec') != 'none' and format.get('vcodec') == 'none':
+                    return {
+                        'success': True,
+                        'url': format['url'],
+                        'title': info.get('title', 'audio')
+                    }
             
-            return {
-                'success': True,
-                'generator': generate,
-                'title': video_title
-            }
+            raise Exception("Nessun formato audio trovato")
 
     except Exception as e:
         return {
@@ -56,17 +38,15 @@ def stream_mp3(url):
 def index():
     if request.method == 'POST':
         url = request.form['url']
-        result = stream_mp3(url)
+        result = get_audio_url(url)
         
         if result['success']:
-            return Response(
-                stream_with_context(result['generator']),
-                mimetype='audio/mpeg',
-                headers={
-                    'Content-Disposition': f'attachment; filename="{result["title"]}.mp3"'
-                }
-            )
+            # Reindirizza direttamente all'URL dello stream audio
+            return redirect(result['url'])
         else:
             return render_template('index.html', error=result['error'])
     
     return render_template('index.html')
+
+if __name__ == '__main__':
+    app.run(debug=True)
