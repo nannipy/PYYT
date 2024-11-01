@@ -1,17 +1,24 @@
 import os
 import yt_dlp
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, render_template, send_file, make_response
+import tempfile
+import uuid
 
 app = Flask(__name__)
 
-def download_mp3(url):
-    """Scarica un file MP3 dall'URL del video"""
-    try:
-        # Configurazione per yt-dlp
-        download_path = os.path.join('downloads', 'mp3')
-        os.makedirs(download_path, exist_ok=True)
+def generate_safe_filename():
+    """Genera un nome file univoco"""
+    return str(uuid.uuid4())
 
-        # Opzioni per yt-dlp
+def download_mp3(url):
+    """Scarica un file MP3 dall'URL del video usando una directory temporanea"""
+    try:
+        # Usa la directory temporanea di sistema
+        temp_dir = tempfile.mkdtemp(dir='/tmp')
+        
+        # Genera un nome file univoco
+        output_file = os.path.join(temp_dir, f"{generate_safe_filename()}.%(ext)s")
+
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -19,36 +26,64 @@ def download_mp3(url):
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
-            'outtmpl': os.path.join(download_path, '%(title)s.%(ext)s'),
+            'outtmpl': output_file,
+            'prefer_ffmpeg': True,
+            'keepvideo': False
         }
 
-        # Scaricamento del file
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=True)
+            # Estrai le informazioni senza scaricare
+            info_dict = ydl.extract_info(url, download=False)
+            video_title = info_dict.get('title', 'video')
             
-            # Ottieni il nome del file scaricato
-            filename = ydl.prepare_filename(info_dict)
-            filename = os.path.splitext(filename)[0] + '.mp3'
+            # Scarica il file
+            ydl.download([url])
             
-            # Ritorna il percorso completo del file
-            return filename
+            # Trova il file MP3 creato
+            mp3_file = None
+            for file in os.listdir(temp_dir):
+                if file.endswith('.mp3'):
+                    mp3_file = os.path.join(temp_dir, file)
+                    break
+            
+            if mp3_file:
+                return {
+                    'success': True,
+                    'file_path': mp3_file,
+                    'title': video_title
+                }
+            else:
+                raise Exception("File MP3 non trovato dopo il download")
 
     except Exception as e:
-        return f"Errore nel download: {str(e)}"
+        return {
+            'success': False,
+            'error': str(e)
+        }
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    result = None
     if request.method == 'POST':
         url = request.form['url']
         result = download_mp3(url)
+        
+        if result['success']:
+            try:
+                # Leggi il file e creane una risposta
+                with open(result['file_path'], 'rb') as f:
+                    response = make_response(f.read())
+                
+                # Imposta gli header appropriati
+                response.headers['Content-Type'] = 'audio/mpeg'
+                response.headers['Content-Disposition'] = f'attachment; filename="{result["title"]}.mp3"'
+                
+                # Elimina il file temporaneo
+                os.remove(result['file_path'])
+                
+                return response
+            except Exception as e:
+                return render_template('index.html', error=f"Errore nell'invio del file: {str(e)}")
+        else:
+            return render_template('index.html', error=result['error'])
     
-    return render_template('index.html', result=result)
-
-@app.route('/download/<path:filename>')
-def download_file(filename):
-    filepath = os.path.join('downloads', 'mp3', filename)
-    return send_file(filepath, as_attachment=True)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    return render_template('index.html')
