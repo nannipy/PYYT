@@ -1,52 +1,19 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>MP3 Downloader</title>
-    <style>
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            text-align: center;
-        }
-        .form-group {
-            margin: 20px 0;
-        }
-        input[type="text"] {
-            width: 80%;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        .error {
-            color: red;
-            margin: 10px 0;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>YouTube Video Downloader</title>
 </head>
 <body>
     <div class="container">
-        <h1>MP3 Downloader</h1>
-        <p>Converti video YouTube in MP3 con un click</p>
-        
-        <form method="POST" action="/">
-            <div class="form-group">
-                <input type="text" name="url" placeholder="Incolla l'URL del video YouTube" required>
-                <button type="submit">Scarica MP3</button>
-            </div>
+        <h1>YouTube Video Downloader</h1>
+        <form method="POST">
+            <label for="youtube_url">Enter YouTube URL:</label>
+            <input type="text" name="youtube_url" id="youtube_url" required>
+            <button type="submit">Download</button>
         </form>
-
-        {% if error %}
-        <div class="error">
-            {{ error }}
-        </div>
-        {% endif %}
     </div>
 </body>
 </html>
