@@ -1,2 +1,4 @@
-pytube
-flask
+Pytube==15.0.0
+Flask==3.0.3
+Gunicorn==22.0.0
+Werkzeug==3.0.3
