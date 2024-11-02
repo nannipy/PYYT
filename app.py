@@ -64,4 +64,4 @@ def download():
     return render_template('download.html', video_title=session['title'])
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+    app.run(debug=True)
